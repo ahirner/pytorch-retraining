@@ -14,6 +14,6 @@ stats = train_eval(model_pretrained, trainloader, testloader, final_params_names
 
 * **Chart** `training_time`, `evaluation_time` (fps), top-1 `accuracy` for varying levels of retraining depth (shallow, deep and from scratch)
 
-|  ![chart](https://raw.githubusercontent.com/ahirner/pytorch-retraining/master/diagram_bees.png) | 
+|  ![chart](https://raw.githubusercontent.com/ahirner/pytorch-retraining/master/results/diagram_bees.png) | 
 |:---:|
 | *Transfer learning on example dataset [Bee vs Ants](http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html)* with 2xK80 GPUs|
