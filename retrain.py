@@ -106,32 +106,33 @@ def diff_states(dict_canonical, dict_subset):
 
 def load_model_merged(name, num_classes):
     
-    model = models.__dict__[name](num_classes=num_classes)
-
     # Densenets don't (yet) pass on num_classes, hack it in
     if "densenet" in name:
         if name == 'densenet169':
-            return models.DenseNet(num_init_features=64, growth_rate=32, \
-                                   block_config=(6, 12, 32, 32),
-                                   num_classes=num_classes)
+            model = models.DenseNet(num_init_features=64, growth_rate=32, \
+                                    block_config=(6, 12, 32, 32),
+                                    num_classes=num_classes)
 
         elif name == 'densenet121':
-            return models.DenseNet(num_init_features=64, growth_rate=32, \
-                                   block_config=(6, 12, 24, 16),
-                                   num_classes=num_classes)
+            model = models.DenseNet(num_init_features=64, growth_rate=32, \
+                                    block_config=(6, 12, 24, 16),
+                                    num_classes=num_classes)
 
         elif name == 'densenet201':
-            return models.DenseNet(num_init_features=64, growth_rate=32, \
-                                   block_config=(6, 12, 48, 32),
-                                   num_classes=num_classes)
+            model = models.DenseNet(num_init_features=64, growth_rate=32, \
+                                    block_config=(6, 12, 48, 32),
+                                    num_classes=num_classes)
 
         elif name == 'densenet161':
-            return models.DenseNet(num_init_features=96, growth_rate=48, \
-                                   block_config=(6, 12, 36, 24),
-                                   num_classes=num_classes)
+            model = models.DenseNet(num_init_features=96, growth_rate=48, \
+                                    block_config=(6, 12, 36, 24),
+                                    num_classes=num_classes)
         else:
             raise ValueError(
                 "Cirumventing missing num_classes kwargs not implemented for %s" % name)
+    else:
+        model = models.__dict__[name](num_classes=num_classes)
+
 
     pretrained_state = model_zoo.load_url(model_urls[name])
 
