@@ -6,41 +6,15 @@ from glob import glob
 import torch
 import torch.optim as optim
 from torch import nn
-from torch.autograd import Variable
+from torch.optim.lr_scheduler import CyclicLR
 
 import torchvision
 import torchvision.models as models
-import torch.utils.model_zoo as model_zoo
 import torchvision.transforms as transforms
 from torchvision import datasets
 
 from itertools import accumulate
 from functools import reduce
-
-from CLR_preview import CyclicLR
-
-model_urls = {
-    'alexnet': 'https://download.pytorch.org/models/alexnet-owt-4df8aa71.pth',
-    'densenet121': 'https://download.pytorch.org/models/densenet121-241335ed.pth',
-    'densenet169': 'https://download.pytorch.org/models/densenet169-6f0f7f60.pth',
-    'densenet201': 'https://download.pytorch.org/models/densenet201-4c113574.pth',
-    'densenet161': 'https://download.pytorch.org/models/densenet161-17b70270.pth',
-    #truncated _google to match module name
-    'inception_v3': 'https://download.pytorch.org/models/inception_v3_google-1a9a5a14.pth',
-    'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
-    'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
-    'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
-    'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
-    'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',    
-    'squeezenet1_0': 'https://download.pytorch.org/models/squeezenet1_0-a815701f.pth',
-    'squeezenet1_1': 'https://download.pytorch.org/models/squeezenet1_1-f364aa15.pth',
-    'vgg11': 'https://download.pytorch.org/models/vgg11-bbd30ac9.pth',
-    'vgg13': 'https://download.pytorch.org/models/vgg13-c768596a.pth',
-    'vgg16': 'https://download.pytorch.org/models/vgg16-397923af.pth',
-    'vgg19': 'https://download.pytorch.org/models/vgg19-dcbb9e9d.pth',    
-}
-
-model_names = model_urls.keys()
 
 input_sizes = {
     'alexnet' : (224,224),
@@ -54,8 +28,8 @@ input_sizes = {
 # ### Configuration
 models_to_test = ['alexnet', 'densenet169', 'inception_v3', \
                   'resnet34', 'squeezenet1_1', 'vgg13']
-#Todo: inception_v3 (sometimes) fails with tensor size mismatch
-#when training from scratch
+#Todo: inception_v3 hangs at model construction at some
+#scipy innards
 models_to_test = ['alexnet', 'densenet169', \
                   'resnet34', 'squeezenet1_1', 'vgg13']
 
@@ -105,36 +79,11 @@ def diff_states(dict_canonical, dict_subset):
             yield (name, v1)                
 
 def load_model_merged(name, num_classes):
-    
-    # Densenets don't (yet) pass on num_classes, hack it in
-    if "densenet" in name:
-        if name == 'densenet169':
-            model = models.DenseNet(num_init_features=64, growth_rate=32, \
-                                    block_config=(6, 12, 32, 32),
-                                    num_classes=num_classes)
 
-        elif name == 'densenet121':
-            model = models.DenseNet(num_init_features=64, growth_rate=32, \
-                                    block_config=(6, 12, 24, 16),
-                                    num_classes=num_classes)
-
-        elif name == 'densenet201':
-            model = models.DenseNet(num_init_features=64, growth_rate=32, \
-                                    block_config=(6, 12, 48, 32),
-                                    num_classes=num_classes)
-
-        elif name == 'densenet161':
-            model = models.DenseNet(num_init_features=96, growth_rate=48, \
-                                    block_config=(6, 12, 36, 24),
-                                    num_classes=num_classes)
-        else:
-            raise ValueError(
-                "Cirumventing missing num_classes kwargs not implemented for %s" % name)
-    else:
-        model = models.__dict__[name](num_classes=num_classes)
-
-
-    pretrained_state = model_zoo.load_url(model_urls[name])
+    # Get model and state dict in idiomatic way
+    model_cls = getattr(models, name)
+    model = model_cls(num_classes=num_classes, pretrained=False)
+    pretrained_state = model_cls(pretrained=True).state_dict()
 
     #Diff
     diff = [s for s in diff_states(model.state_dict(), pretrained_state)]
@@ -168,14 +117,14 @@ def get_data(resize):
 
     data_transforms = {
         'train': transforms.Compose([
-            transforms.RandomSizedCrop(max(resize)),
+            transforms.RandomResizedCrop(max(resize)),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
         'val': transforms.Compose([
             #Higher scale-up for inception
-            transforms.Scale(int(max(resize)/224*256)),
+            transforms.Resize(int(max(resize)/224*256)),
             transforms.CenterCrop(max(resize)),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -214,7 +163,8 @@ def train(net, trainloader, epochs, param_list=None, CLR=False):
     if CLR:
             
         global clr_stepsize
-        clr_wrapper = CyclicLR(optimizer, step_size=clr_stepsize)
+        clr_wrapper = CyclicLR(optimizer, base_lr=0.0001, max_lr=0.002,
+                step_size_up=clr_stepsize, step_size_down=clr_stepsize)
     
     losses = []
     for epoch in range(epochs):
@@ -224,9 +174,7 @@ def train(net, trainloader, epochs, param_list=None, CLR=False):
             # get the inputs
             inputs, labels = data
             if use_gpu:
-                inputs, labels = Variable(inputs.cuda()), Variable(labels.cuda(async=True))
-            else:
-                inputs, labels = Variable(inputs), Variable(labels)
+                inputs, labels = inputs.cuda(), labels.cuda()
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -243,10 +191,10 @@ def train(net, trainloader, epochs, param_list=None, CLR=False):
             loss.backward()
             optimizer.step()
             if CLR:
-                clr_wrapper.batch_step()
+                clr_wrapper.step()
             
             # print statistics
-            running_loss += loss.data[0]
+            running_loss += loss.item()
             if i % 30 == 29:
                 avg_loss = running_loss / 30
                 losses.append(avg_loss)
@@ -295,12 +243,12 @@ def evaluate_stats(net, testloader):
         images, labels = data
 
         if use_gpu:
-            images, labels = (images.cuda()), (labels.cuda(async=True))
+            images, labels = images.cuda(), labels.cuda()
 
-        outputs = net(Variable(images))
+        outputs = net(images)
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
-        correct += (predicted == labels).sum()
+        correct += (predicted == labels).sum().cpu().item()
     accuracy = correct / total
     stats['accuracy'] = accuracy
     stats['eval_time'] = time.time() - before
@@ -315,7 +263,8 @@ def train_eval(net, trainloader, testloader, epochs, param_list=None, CLR=False)
     
     print("Evaluating...")
     net = net.eval()
-    stats_eval = evaluate_stats(net, testloader)
+    with torch.no_grad():
+        stats_eval = evaluate_stats(net, testloader)
     
     return {**stats_train, **stats_eval}
 

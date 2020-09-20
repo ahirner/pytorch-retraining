@@ -16,7 +16,7 @@ stats = train_eval(model_pretrained, trainloader, testloader, final_params_names
 
 |  ![chart](https://raw.githubusercontent.com/ahirner/pytorch-retraining/master/results/diagram_bees.png) | 
 |:---:|
-| *Transfer learning on example dataset [Bee vs Ants](http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html)* with 2xK80 GPUs|
+| *Transfer learning on example dataset [Bee vs Ants](http://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html)* with 2xV100 GPUs|
 
 ## Results on more elaborate Dataset
 *num_classes = 23, slightly unbalanced, high variance in rotation and motion blur artifacts* with 1xGTX1080Ti
