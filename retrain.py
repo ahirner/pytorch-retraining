@@ -6,7 +6,6 @@ from glob import glob
 import torch
 import torch.optim as optim
 from torch import nn
-from torch.autograd import Variable
 
 import torchvision
 import torchvision.models as models
@@ -168,14 +167,14 @@ def get_data(resize):
 
     data_transforms = {
         'train': transforms.Compose([
-            transforms.RandomSizedCrop(max(resize)),
+            transforms.RandomResizedCrop(max(resize)),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
         'val': transforms.Compose([
             #Higher scale-up for inception
-            transforms.Scale(int(max(resize)/224*256)),
+            transforms.Resize(int(max(resize)/224*256)),
             transforms.CenterCrop(max(resize)),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -224,9 +223,7 @@ def train(net, trainloader, epochs, param_list=None, CLR=False):
             # get the inputs
             inputs, labels = data
             if use_gpu:
-                inputs, labels = Variable(inputs.cuda()), Variable(labels.cuda(async=True))
-            else:
-                inputs, labels = Variable(inputs), Variable(labels)
+                inputs, labels = inputs.cuda(), labels.cuda()
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -246,7 +243,7 @@ def train(net, trainloader, epochs, param_list=None, CLR=False):
                 clr_wrapper.batch_step()
             
             # print statistics
-            running_loss += loss.data[0]
+            running_loss += loss.item()
             if i % 30 == 29:
                 avg_loss = running_loss / 30
                 losses.append(avg_loss)
@@ -295,7 +292,7 @@ def evaluate_stats(net, testloader):
         images, labels = data
 
         if use_gpu:
-            images, labels = (images.cuda()), (labels.cuda(async=True))
+            images, labels = images.cuda(), labels.cuda()
 
         outputs = net(Variable(images))
         _, predicted = torch.max(outputs.data, 1)
